@@ -232,7 +232,7 @@
   });
 
   function connectWebSocket() {
-    const url = `wss://morning-recipe-30ff.cristiansandoval625.workers.dev/?host=${serverHost}&port=${serverPort}`;
+    const url = wss://morning-recipe-30ff.cristiansandoval625.workers.dev/?host=${serverHost}&port=${serverPort};
     try { ws = new WebSocket(url); } 
     catch (e) { setStatus('error', 'Blocked'); connectBtn.disabled = false; return; }
 
