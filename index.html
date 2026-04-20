@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e1a">
+<title>Anki Clicker</title>
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiQW5raSBDbGlja2VyIiwic2hvcnRfbmFtZSI6IkFua2kgQ2xpY2tlciIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYTBlMWEiLCJ0aGVtZV9jb2xvciI6IiMwYTBlMWEifQ==">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,700&family=JetBrains+Mono:wght@500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0e1a; --surface: #141929; --surface2: #1c2236; --border: #262d42; 
+    --text: #e8ecf4; --text-dim: #6b7394;
+    --accent: #3b82f6; --green: #10b981; --red: #ef4444; --orange: #f97316;
+    --radius: 16px; --safe-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    overflow: hidden; touch-action: none; /* Stops pull-to-refresh & scrolling */
+    user-select: none; -webkit-user-select: none;
+  }
+
+  .app {
+    display: flex; flex-direction: column; height: 100%; height: 100dvh;
+    padding: env(safe-area-inset-top, 20px) 20px var(--safe-bottom) 20px;
+  }
+
+  /* ---- Connect Screen ---- */
+  .connect-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 32px; animation: fadeUp 0.5s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .logo-area { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .logo-icon { width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent), #6366f1); border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 8px 32px rgba(59,130,246,0.25); }
+  .logo-title { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo-sub { color: var(--text-dim); font-size: 14px; text-align: center;}
+  .code-input-group { display: flex; gap: 8px; justify-content: center; }
+  .code-digit { width: 48px; height: 64px; background: var(--surface); border: 2px solid var(--border); border-radius: 12px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 28px; text-align: center; outline: none; caret-color: var(--accent); transition: border-color 0.2s; }
+  .code-digit:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+  .connect-btn { width: 100%; max-width: 320px; padding: 16px; background: linear-gradient(135deg, var(--accent), #6366f1); color: white; border: none; border-radius: var(--radius); font-size: 16px; font-weight: 700; cursor: pointer; transition: transform 0.15s; }
+  .connect-btn:active { transform: scale(0.97); } .connect-btn:disabled { opacity: 0.5; }
+  .status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 100px; font-size: 13px; font-weight: 500; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+  .status-dot.connecting { background: #eab308; animation: pulse 1s infinite; }
+  .status-dot.connected { background: var(--green); } .status-dot.error { background: var(--red); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ---- Remote Screen ---- */
+  .remote-screen { display: none; flex-direction: column; flex: 1; animation: fadeUp 0.4s ease; }
+  .remote-screen.active { display: flex; }
+  
+  .remote-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; z-index: 10; }
+  .room-badge { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent); background: rgba(59,130,246,0.1); padding: 6px 14px; border-radius: 100px; border: 1px solid rgba(59,130,246,0.2); }
+  .disconnect-btn { padding: 8px 16px; background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); border-radius: 100px; font-weight: 600; font-size: 13px; cursor: pointer; }
+
+  /* ---- Gesture Interface ---- */
+  .gesture-area {
+    flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+
+  /* Background Labels */
+  .hint-label {
+    position: absolute; font-size: 26px; font-weight: 700; letter-spacing: 2px;
+    color: var(--text-dim); opacity: 0.25; transition: opacity 0.2s, color 0.2s, transform 0.2s; pointer-events: none;
+  }
+  .hint-up    { top: 12%; color: var(--accent); }
+  .hint-down  { bottom: 12%; color: var(--red); }
+  .hint-left  { left: 5%; color: var(--orange); writing-mode: vertical-rl; transform: rotate(180deg); }
+  .hint-right { right: 5%; color: var(--green); writing-mode: vertical-rl; }
+
+  .hint-label.active { opacity: 1; transform: scale(1.2); }
+  .hint-left.active { transform: rotate(180deg) scale(1.2); }
+
+  /* The Draggable Knob */
+  .joystick-knob {
+    width: 190px; height: 190px;
+    background: linear-gradient(135deg, var(--surface), var(--surface2));
+    border: 5px solid var(--border); border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5), inset 0 2px 10px rgba(255,255,255,0.05);
+    z-index: 10; cursor: grab;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.2s;
+  }
+  .joystick-knob:active { cursor: grabbing; }
+  .knob-text { font-size: 28px; font-weight: 700; color: var(--text); pointer-events: none; }
+  .knob-subtext { font-size: 13px; color: var(--text-dim); margin-top: 6px; pointer-events: none; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Extras Row at bottom */
+  .extras-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-bottom: 8px; z-index: 10;}
+  .extra-btn { padding: 14px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; }
+
+  /* ---- Toast & PWA Banner ---- */
+  .toast { position: fixed; top: calc(env(safe-area-inset-top, 20px) + 12px); left: 50%; transform: translateX(-50%) translateY(-80px); padding: 10px 24px; border-radius: 100px; font-size: 14px; font-weight: 700; color: white; pointer-events: none; z-index: 1000; opacity: 0; transition: transform 0.3s ease, opacity 0.3s ease; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .pwa-banner { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 16px 20px; display: none; align-items: center; gap: 12px; z-index: 100; animation: slideUp 0.3s ease; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .pwa-banner p { flex: 1; font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+  .pwa-banner b { color: var(--text); }
+  .pwa-close { background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; padding: 4px 8px; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="connect-screen" id="connectScreen">
+    <div class="logo-area">
+      <div class="logo-icon">🎮</div>
+      <div class="logo-title">Anki Clicker</div>
+      <div class="logo-sub">Enter the 6-digit room code from Anki</div>
+    </div>
+    <div class="code-input-group" id="codeGroup">
+      <input class="code-digit" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input class="code-digit" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input class="code-digit" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input class="code-digit" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input class="code-digit" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+      <input class="code-digit" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+    </div>
+    <button class="connect-btn" id="connectBtn" disabled>Connect</button>
+    <div class="status-pill" id="statusPill">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Enter room code</span>
+    </div>
+  </div>
+
+  <div class="remote-screen" id="remoteScreen">
+    <div class="remote-header">
+      <div class="room-badge" id="roomBadge">Room ------</div>
+      <button class="disconnect-btn" id="disconnectBtn">Disconnect</button>
+    </div>
+
+    <div class="gesture-area" id="gestureArea">
+      <div class="hint-label hint-up" id="hintUp">EASY</div>
+      <div class="hint-label hint-down" id="hintDown">AGAIN</div>
+      <div class="hint-label hint-left" id="hintLeft">HARD</div>
+      <div class="hint-label hint-right" id="hintRight">GOOD</div>
+      
+      <div class="joystick-knob" id="joystickKnob">
+        <div class="knob-text">TAP</div>
+        <div class="knob-subtext">Show Answer</div>
+      </div>
+    </div>
+
+    <div class="extras-row">
+      <button class="extra-btn" data-action="UNDO">↩ Undo</button>
+      <button class="extra-btn" data-action="MARK">⭐ Mark</button>
+      <button class="extra-btn" data-action="BURY">📦 Bury</button>
+      <button class="extra-btn" data-action="SUSPEND">⏸ Susp</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="pwa-banner" id="pwaBanner">
+  <p>Tap <b>Share</b> → <b>Add to Home Screen</b> for full-screen mode!</p>
+  <button class="pwa-close" id="pwaClose">✕</button>
+</div>
+
+<script>
+(function() {
+  let ws = null;
+  let roomId = '';
+  let serverHost = '';
+  let serverPort = 0;
+
+  const connectScreen = document.getElementById('connectScreen');
+  const remoteScreen = document.getElementById('remoteScreen');
+  const connectBtn = document.getElementById('connectBtn');
+  const disconnectBtn = document.getElementById('disconnectBtn');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const roomBadge = document.getElementById('roomBadge');
+  const toast = document.getElementById('toast');
+  const digits = document.querySelectorAll('.code-digit');
+
+  const knob = document.getElementById('joystickKnob');
+  const hintUp = document.getElementById('hintUp');
+  const hintDown = document.getElementById('hintDown');
+  const hintLeft = document.getElementById('hintLeft');
+  const hintRight = document.getElementById('hintRight');
+
+  digits.forEach((input, i) => {
+    input.addEventListener('input', (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      e.target.value = val.slice(-1);
+      if (val && i < 5) digits[i + 1].focus();
+      updateConnectBtn();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !e.target.value && i > 0) {
+        digits[i - 1].focus(); digits[i - 1].value = ''; updateConnectBtn();
+      }
+      if (e.key === 'Enter') connectBtn.click();
+    });
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+      pasted.split('').forEach((ch, j) => { if (digits[j]) digits[j].value = ch; });
+      if (pasted.length > 0) digits[Math.min(pasted.length, 5)].focus();
+      updateConnectBtn();
+    });
+  });
+
+  function getCode() { return Array.from(digits).map(d => d.value).join(''); }
+  function updateConnectBtn() { connectBtn.disabled = getCode().length < 6; }
+
+  let toastTimer = null;
+  function showToast(text, color) {
+    toast.textContent = text; toast.style.background = color || '#334155';
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1500);
+  }
+  function vibrate(pattern) { if (navigator.vibrate) navigator.vibrate(pattern); }
+
+  connectBtn.addEventListener('click', () => {
+    roomId = getCode();
+    if (roomId.length < 6) return;
+    setStatus('connecting', 'Connecting…');
+    connectBtn.disabled = true;
+
+    serverHost = '77.42.88.71'; 
+    serverPort = 8080;
+    connectWebSocket();
+  });
+
+  function connectWebSocket() {
+    const url = `ws://${serverHost}:${serverPort}`;
+    try { ws = new WebSocket(url); } 
+    catch (e) { setStatus('error', 'Blocked'); connectBtn.disabled = false; return; }
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'join', room: roomId, role: 'phone' }));
+      setStatus('connected', 'Connected');
+      switchToRemote();
+    };
+    ws.onclose = () => {
+      if (remoteScreen.classList.contains('active')) {
+        switchToConnect(); showToast('Disconnected', '#ef4444');
+      }
+      setStatus('error', 'Disconnected'); connectBtn.disabled = false;
+    };
+    ws.onerror = () => {
+      setStatus('error', 'Connection failed'); connectBtn.disabled = false;
+    };
+  }
+
+  function sendAction(action) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) { showToast('Not connected', '#ef4444'); return; }
+    const colors = { EASY:'#3b82f6', GOOD:'#10b981', HARD:'#f97316', AGAIN:'#ef4444', SHOW:'#64748b', UNDO:'#eab308' };
+    ws.send(JSON.stringify({ action: action, room: roomId }));
+    
+    if(action === 'AGAIN') vibrate([40, 30, 40]);
+    else if(action === 'SHOW') vibrate(10);
+    else vibrate(25);
+    
+    showToast(action, colors[action] || '#334155');
+  }
+
+  function switchToRemote() { connectScreen.style.display = 'none'; remoteScreen.classList.add('active'); roomBadge.textContent = 'Room ' + roomId; }
+  function switchToConnect() { remoteScreen.classList.remove('active'); connectScreen.style.display = ''; digits.forEach(d => d.value = ''); updateConnectBtn(); }
+  function setStatus(state, text) { statusDot.className = 'status-dot ' + state; statusText.textContent = text; }
+
+  document.querySelectorAll('.extra-btn').forEach(btn => {
+    btn.addEventListener('click', () => sendAction(btn.dataset.action));
+  });
+  disconnectBtn.addEventListener('click', () => {
+    if (ws) { try { ws.send(JSON.stringify({ type: 'disconnect' })); } catch {} ws.close(); }
+    switchToConnect(); setStatus('', 'Enter room code');
+  });
+
+  // --- GESTURE LOGIC ---
+  let isDragging = false;
+  let startX = 0, startY = 0;
+  
+  let maxDrag = 140; 
+  let triggerThreshold = 70; 
+
+  function handleDragStart(e) {
+    isDragging = true;
+    let pt = e.touches ? e.touches[0] : e;
+    startX = pt.clientX;
+    startY = pt.clientY;
+    knob.style.transition = 'none';
+  }
+
+  function handleDragMove(e) {
+    if (!isDragging) return;
+    e.preventDefault(); 
+    
+    let pt = e.touches ? e.touches[0] : e;
+    let dx = pt.clientX - startX;
+    let dy = pt.clientY - startY;
+
+    let dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > maxDrag) {
+      dx = (dx / dist) * maxDrag;
+      dy = (dy / dist) * maxDrag;
+    }
+    
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    hintUp.classList.remove('active'); hintDown.classList.remove('active');
+    hintLeft.classList.remove('active'); hintRight.classList.remove('active');
+    knob.style.borderColor = 'var(--border)';
+
+    if (dist > triggerThreshold) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0) { hintRight.classList.add('active'); knob.style.borderColor = 'var(--green)'; }
+        else { hintLeft.classList.add('active'); knob.style.borderColor = 'var(--orange)'; }
+      } else {
+        if (dy > 0) { hintDown.classList.add('active'); knob.style.borderColor = 'var(--red)'; }
+        else { hintUp.classList.add('active'); knob.style.borderColor = 'var(--accent)'; }
+      }
+    }
+  }
+
+  function handleDragEnd(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    knob.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.2s';
+    knob.style.transform = `translate(0px, 0px)`;
+    knob.style.borderColor = 'var(--border)';
+    
+    hintUp.classList.remove('active'); hintDown.classList.remove('active');
+    hintLeft.classList.remove('active'); hintRight.classList.remove('active');
+
+    let pt = e.changedTouches ? e.changedTouches[0] : e;
+    let dx = pt.clientX - startX;
+    let dy = pt.clientY - startY;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < 15) {
+      sendAction('SHOW');
+      return;
+    }
+
+    if (dist < triggerThreshold) return;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) sendAction('GOOD');
+      else sendAction('HARD');
+    } else {
+      if (dy > 0) sendAction('AGAIN');
+      else sendAction('EASY');
+    }
+  }
+
+  knob.addEventListener('touchstart', handleDragStart, {passive: false});
+  knob.addEventListener('touchmove', handleDragMove, {passive: false});
+  knob.addEventListener('touchend', handleDragEnd);
+  
+  knob.addEventListener('mousedown', handleDragStart);
+  document.addEventListener('mousemove', handleDragMove);
+  document.addEventListener('mouseup', handleDragEnd);
+
+  // --- Show PWA Install Banner on iOS Safari ---
+  const banner = document.getElementById('pwaBanner');
+  const closeBtn = document.getElementById('pwaClose');
+  if (!window.matchMedia('(display-mode: standalone)').matches && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    setTimeout(() => { banner.style.display = 'flex'; }, 2000);
+  }
+  closeBtn.addEventListener('click', () => { banner.style.display = 'none'; });
+
+  setTimeout(() => digits[0].focus(), 300);
+})();
+</script>
+</body>
+</html>
