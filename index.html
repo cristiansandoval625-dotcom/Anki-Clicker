@@ -232,7 +232,7 @@
   });
 
   function connectWebSocket() {
-    const url = `wss://${serverHost}:${serverPort}`;
+    const url = `ws://${serverHost}:${serverPort}`;
     try { ws = new WebSocket(url); } 
     catch (e) { setStatus('error', 'Blocked'); connectBtn.disabled = false; return; }
 
